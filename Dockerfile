@@ -1,8 +1,8 @@
 FROM python:3-slim-buster
 
-COPY helloworld.py .
+COPY app.py .
 
 ENTRYPOINT ["python"]
-CMD ["helloworld.py"]
+CMD ["app.py"]
 
 
