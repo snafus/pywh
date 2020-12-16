@@ -48,7 +48,7 @@ def logout():
         url_for('homepage', _external=True))
     )
 
-print("Deployment 1")
+print("Deployment 2")
 app.secret_key = os.urandom(24)
 app.run(host="0.0.0.0",port=8080)
 
