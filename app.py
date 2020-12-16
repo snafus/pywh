@@ -1,32 +1,53 @@
-# Python 3 server example
-from http.server import BaseHTTPRequestHandler, HTTPServer
-import time
+from flask import Flask, redirect, session
+from authlib.integrations.flask_client import OAuth
+from authlib.jose import jwt
+import json
+from flask import url_for, render_template
+import os
 
-#hostName = "localhost"
-hostName = "0.0.0.0"
-serverPort = 8080
+# Based on the official Authlib example for Google:
+# https://github.com/authlib/demo-oauth-client/blob/master/flask-google-login/app.py
 
-class MyServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(bytes("<html><head><title>https://pythonbasics.org</title></head>", "utf-8"))
-        self.wfile.write(bytes("<p>Request: %s</p>" % self.path, "utf-8"))
-        self.wfile.write(bytes("<body>", "utf-8"))
-        self.wfile.write(bytes("<p>This is an example web server.</p>", "utf-8"))
-        self.wfile.write(bytes("</body></html>", "utf-8"))
+app = Flask(__name__)
+app.config.from_pyfile("app.cfg")
 
-if __name__ == "__main__":        
-    webServer = HTTPServer((hostName, serverPort), MyServer)
-    print("Server started http://%s:%s" % (hostName, serverPort))
+CONF_URL = 'https://auth.cern.ch/auth/realms/cern/.well-known/openid-configuration'
+LOGOUT_URL = 'https://auth.cern.ch/auth/realms/cern/protocol/openid-connect/logout'
 
-    try:
-        webServer.serve_forever()
-    except KeyboardInterrupt:
-        pass
+oauth = OAuth()
+oauth.register(
+    'sso',
+    server_metadata_url=CONF_URL,
+    client_kwargs={'scope': 'openid oidc-cern-login-info'}
+)
+oauth.init_app(app)
 
-    webServer.server_close()
-    print("Server stopped.")
+@app.route('/')
+def homepage():
+    user = session.get('user')
+    return render_template('home.html', user=user)
 
+@app.route('/login')
+def login():
+    redirect_uri = url_for('authorize', _external=True)
+    return oauth.sso.authorize_redirect(redirect_uri)
+
+@app.route('/authorize')
+def authorize():
+    token = oauth.sso.authorize_access_token()
+    user = oauth.sso.parse_id_token(token)
+    # Use the user object for authorization (e.g. check user roles)
+    session['user'] = user
+    return redirect(url_for('homepage'))
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect("{}?redirect_uri={}".format(
+        LOGOUT_URL,
+        url_for('homepage', _external=True))
+    )
+
+app.secret_key = os.urandom(24)
+app.run(port=8080)
 
